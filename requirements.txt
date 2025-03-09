@@ -1,0 +1,1 @@
+kubernetes_asyncio~=32.0.0
