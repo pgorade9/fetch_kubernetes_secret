@@ -1,9 +1,9 @@
 import asyncio
 import base64
+import json
 
 from kubernetes_asyncio import client, config
-
-from config_local import context, namespace, secret_key
+from configuration import keyvault
 
 
 async def listpods_kubernetes_async_api(context, namespace):
@@ -32,12 +32,24 @@ async def fetch_secret_kubernetes_async_api(context, namespace, secret_name):
     # Read Secret in the default namespace
     result = await v1.read_namespaced_secret(name=secret_name, namespace=namespace)
 
-    print(f"Secret Name: {secret_name}, Value: {result.api_version}")
-    print(f"Secret Name: {secret_name}, Value: {base64.b64decode(result.data.get('attribute.default_primary_connection_string')).decode()}")
+    secret_value = base64.b64decode(result.data.get('attribute.default_primary_connection_string')).decode()
+    print(f"Secret Name: {secret_name}, \n Value: {secret_value}")
 
     await v1.api_client.close()
+    return secret_value
+
+
+def update_service_bus_configuration():
+    for env in keyvault["envs-ltops"]:
+        secret_key = f"{keyvault[env]["data_partition_id"]}-servicebus-{keyvault[env]["namespace"]}-message-broker"
+        keyvault[env]["CONNECTION_STRING"] = asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"],
+                                                      keyvault[env]["namespace"],
+                                                      secret_key))
+    FILE = "C:\\Users\\pgorade\\Desktop\\configuration.py"
+    with open(FILE,"w") as fp:
+        fp.write(f"keyvault = {json.dumps(keyvault,indent=4)}")
+
 
 
 if __name__ == "__main__":
-    # asyncio.run(listpods_kubernetes_async_api(context,namespace))
-    asyncio.run(fetch_secret_kubernetes_async_api(context, namespace, secret_key))
+    update_service_bus_configuration()
