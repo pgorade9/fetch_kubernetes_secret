@@ -39,17 +39,17 @@ async def fetch_secret_kubernetes_async_api(context, namespace, secret_name):
     return secret_value
 
 
-def update_service_bus_configuration(update_conn_string:bool):
+def update_service_bus_configuration(update_conn_string: bool):
     if update_conn_string:
         for env in keyvault["envs-ltops"]:
             secret_key = f"{keyvault[env]["data_partition_id"]}-servicebus-{keyvault[env]["namespace"]}-message-broker"
             keyvault[env]["CONNECTION_STRING"] = asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"],
-                                                          keyvault[env]["namespace"],
-                                                          secret_key))
+                                                                                               keyvault[env][
+                                                                                                   "namespace"],
+                                                                                               secret_key))
     FILE = "C:\\Users\\pgorade\\Desktop\\configuration.py"
-    with open(FILE,"w") as fp:
-        fp.write(f"keyvault = {json.dumps(keyvault,indent=4)}")
-
+    with open(FILE, "w") as fp:
+        fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
 
 
 if __name__ == "__main__":
