@@ -22,7 +22,7 @@ async def listpods_kubernetes_async_api(context, namespace):
     await v1.api_client.close()
 
 
-async def fetch_secret_kubernetes_async_api(context, namespace, secret_name):
+async def fetch_secret_kubernetes_async_api(context, namespace, secret_name,fp):
     # Load Kubernetes config (supports ~/.kube/config)
     await config.load_kube_config(context=context)
 
@@ -32,8 +32,9 @@ async def fetch_secret_kubernetes_async_api(context, namespace, secret_name):
     # Read Secret in the default namespace
     result = await v1.read_namespaced_secret(name=secret_name, namespace=namespace)
 
-    secret_value = base64.b64decode(result.data.get('attribute.default_primary_connection_string')).decode()
-    print(f"Secret Name: {secret_name}, \n Value: {secret_value}")
+    secret_key = "attribute.connection_strings.0" if secret_name.endswith("document-storage") else "attribute.default_primary_connection_string"
+    secret_value = base64.b64decode(result.data.get(secret_key)).decode()
+    fp.write(f"Secret Name: {secret_name},\nValue: {secret_value}\n\n")
 
     await v1.api_client.close()
     return secret_value
@@ -42,15 +43,35 @@ async def fetch_secret_kubernetes_async_api(context, namespace, secret_name):
 def update_service_bus_configuration(update_conn_string: bool):
     if update_conn_string:
         for env in keyvault["envs-ltops"]:
-            secret_key = f"{keyvault[env]["data_partition_id"]}-servicebus-{keyvault[env]["namespace"]}-message-broker"
-            keyvault[env]["CONNECTION_STRING"] = asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"],
-                                                                                               keyvault[env][
-                                                                                                   "namespace"],
-                                                                                               secret_key))
+            for key in keyvault[env]["CONNECTION_STRING"].keys():
+
+                secret_key = f"{key}-servicebus-{keyvault[env]["namespace"]}-message-broker"
+                try:
+                    keyvault[env]["CONNECTION_STRING"][key] = asyncio.run(
+                        fetch_secret_kubernetes_async_api(keyvault[env]["cluster"],
+                                                          keyvault[env][
+                                                              "namespace"],
+                                                          secret_key))
+                except Exception as e:
+                    print(f"Could not find connection string for {key}")
     FILE = "C:\\Users\\pgorade\\Desktop\\configuration.py"
     with open(FILE, "w") as fp:
         fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
 
 
+def populate_document_store_configuration():
+    FILE = "C:\\Users\\pgorade\\PycharmProjects\\fetch_kubernetes_secret\\document-store-connection-strings.txt"
+    with open(FILE, "w") as fp:
+        # fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
+        for env in keyvault["envs-ltops"]:
+            for key in keyvault[env]["CONNECTION_STRING"].keys():
+                secret_key = f"{key}-documentstore-{keyvault[env]["namespace"]}-document-storage"
+                try:
+                    asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"], keyvault[env]["namespace"], secret_key, fp))
+                except Exception as e:
+                    print(f"Could not find connection string for {key}")
+
+
 if __name__ == "__main__":
-    update_service_bus_configuration(update_conn_string=False)
+    # update_service_bus_configuration(update_conn_string=True)
+    populate_document_store_configuration()
