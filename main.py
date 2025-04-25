@@ -5,6 +5,8 @@ import json
 from kubernetes_asyncio import client, config
 from configuration import keyvault
 
+DESKTOP_CONFIGURATION_PY = "C:\\Users\\pgorade\\Desktop\\configuration.py"
+
 
 async def listpods_kubernetes_async_api(context, namespace):
     # Load Kubernetes config (supports ~/.kube/config)
@@ -22,7 +24,7 @@ async def listpods_kubernetes_async_api(context, namespace):
     await v1.api_client.close()
 
 
-async def fetch_secret_kubernetes_async_api(context, namespace, secret_name,fp):
+async def fetch_secret_kubernetes_async_api(context, namespace, secret_name, fp):
     # Load Kubernetes config (supports ~/.kube/config)
     await config.load_kube_config(context=context)
 
@@ -32,7 +34,8 @@ async def fetch_secret_kubernetes_async_api(context, namespace, secret_name,fp):
     # Read Secret in the default namespace
     result = await v1.read_namespaced_secret(name=secret_name, namespace=namespace)
 
-    secret_key = "attribute.connection_strings.0" if secret_name.endswith("document-storage") else "attribute.default_primary_connection_string"
+    secret_key = "attribute.connection_strings.0" if secret_name.endswith(
+        "document-storage") else "attribute.default_primary_connection_string"
     secret_value = base64.b64decode(result.data.get(secret_key)).decode()
     fp.write(f"Secret Name: {secret_name},\nValue: {secret_value}\n\n")
 
@@ -54,24 +57,43 @@ def update_service_bus_configuration(update_conn_string: bool):
                                                           secret_key))
                 except Exception as e:
                     print(f"Could not find connection string for {key}")
-    FILE = "C:\\Users\\pgorade\\Desktop\\configuration.py"
-    with open(FILE, "w") as fp:
+    with open(DESKTOP_CONFIGURATION_PY, "w") as fp:
         fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
 
 
 def populate_document_store_configuration():
     FILE = "C:\\Users\\pgorade\\PycharmProjects\\fetch_kubernetes_secret\\document-store-connection-strings.txt"
     with open(FILE, "w") as fp:
-        # fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
         for env in keyvault["envs-ltops"]:
-            for key in keyvault[env]["CONNECTION_STRING"].keys():
+            for key in keyvault[env]["data_partitions"]:
                 secret_key = f"{key}-documentstore-{keyvault[env]["namespace"]}-document-storage"
                 try:
-                    asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"], keyvault[env]["namespace"], secret_key, fp))
+                    asyncio.run(fetch_secret_kubernetes_async_api(keyvault[env]["cluster"], keyvault[env]["namespace"],
+                                                                  secret_key, fp))
                 except Exception as e:
                     print(f"Could not find connection string for {key}")
 
 
+def add_new_entry():
+    env_list = [env for env in keyvault.keys() if
+                isinstance(keyvault.get(env), dict) and keyvault.get(env).get("data_partition_id") not in [None, ""]]
+    print(f"{env_list=}")
+    with open(DESKTOP_CONFIGURATION_PY, "w") as fp:
+        for env in env_list:
+            # keyvault.get(env).update({"data_partitions": [keyvault[env]["data_partition_id"]]})
+            target_kind_item = {"target_kind": {
+                "csv_parser_wf_status_gsm": "csvparser:test:csvparser:1.0.0",
+                "wellbore_ingestion_wf_gsm": "osdu:wks:work-product-component--WellboreTrajectory:1.1.0",
+                "doc_ingestor_azure_ocr_wf": f"{keyvault[env]['data_partition_id']}:sourceTest:document:1.0.0",
+                "shapefile_ingestor_wf_status_gsm": f"{keyvault[env]['data_partition_id']}:test:shapefile:1.0.0"
+            }}
+            keyvault.get(env).update(target_kind_item)
+        fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
+
+    # pass
+
+
 if __name__ == "__main__":
     # update_service_bus_configuration(update_conn_string=True)
-    populate_document_store_configuration()
+    # populate_document_store_configuration()
+    add_new_entry()
