@@ -87,6 +87,8 @@ def add_new_entry():
                 "doc_ingestor_azure_ocr_wf": f"{keyvault[env]['data_partition_id']}:sourceTest:document:1.0.0",
                 "shapefile_ingestor_wf_status_gsm": f"{keyvault[env]['data_partition_id']}:test:shapefile:1.0.0"
             }}
+            if not env.endswith('ltops'):
+                target_kind_item.get("target_kind").update({"Osdu_ingest": f"{keyvault[env]['data_partition_id']}:wks:Manifest:1.0.0"})
             keyvault.get(env).update(target_kind_item)
         fp.write(f"keyvault = {json.dumps(keyvault, indent=4)}")
 
